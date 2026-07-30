@@ -1,0 +1,92 @@
+{
+    "pose_name": "fist",
+    "driver_attr": "fist",
+    "driver_value": 10,
+    "joints": {
+        "index1_jnt": {
+            "rotateX": 0.0,
+            "rotateY": 0.0,
+            "rotateZ": -75.16420478195305
+        },
+        "index2_jnt": {
+            "rotateX": 0.0,
+            "rotateY": 0.0,
+            "rotateZ": -85.36803965842019
+        },
+        "index3_jnt": {
+            "rotateX": 0.0,
+            "rotateY": 0.0,
+            "rotateZ": -71.72340469246026
+        },
+        "middle1_jnt": {
+            "rotateX": 0.0,
+            "rotateY": 0.0,
+            "rotateZ": -59.72809761663773
+        },
+        "middle2_jnt": {
+            "rotateX": -3.2132564667800887,
+            "rotateY": 0.9667120945633155,
+            "rotateZ": -87.98449304670523
+        },
+        "middle3_jnt": {
+            "rotateX": 0.0,
+            "rotateY": 0.0,
+            "rotateZ": -60.47088979538201
+        },
+        "ring1_jnt": {
+            "rotateX": 0.0,
+            "rotateY": 0.0,
+            "rotateZ": -46.51391944212804
+        },
+        "ring2_jnt": {
+            "rotateX": 0.0,
+            "rotateY": 0.0,
+            "rotateZ": -85.62416750163409
+        },
+        "ring3_jnt": {
+            "rotateX": 0.0,
+            "rotateY": 0.0,
+            "rotateZ": -71.90472225009354
+        },
+        "pinky1_jnt": {
+            "rotateX": 0.0,
+            "rotateY": 0.0,
+            "rotateZ": -59.205858989534455
+        },
+        "pinky2_jnt": {
+            "rotateX": 0.0,
+            "rotateY": 0.0,
+            "rotateZ": -89.5044567934636
+        },
+        "pinky3_jnt": {
+            "rotateX": 0.0,
+            "rotateY": 0.0,
+            "rotateZ": -73.22854355892466
+        },
+        "pinky4_jnt": {
+            "rotateX": 0.0,
+            "rotateY": 0.0,
+            "rotateZ": 0.0
+        },
+        "thumb_palm_jnt": {
+            "rotateX": 5.060734755320787,
+            "rotateY": 10.181789796211211,
+            "rotateZ": -15.925396915072016
+        },
+        "thumb1_jnt": {
+            "rotateX": 40.39947586207697,
+            "rotateY": 40.99526139062506,
+            "rotateZ": -38.0676988250633
+        },
+        "thumb2_jnt": {
+            "rotateX": 1.1371335489299828,
+            "rotateY": 0.28360394152571394,
+            "rotateZ": -14.002196769524078
+        },
+        "thumb3_jnt": {
+            "rotateX": 0.0,
+            "rotateY": 0.0,
+            "rotateZ": 0.0
+        }
+    }
+}
