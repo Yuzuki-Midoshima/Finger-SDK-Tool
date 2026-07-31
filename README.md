@@ -44,7 +44,7 @@ Documents/
 Do not place it under a version- or locale-specific folder such as
 `maya/2026/ja_JP/scripts`.
 
-Create a **Python** shelf button and paste the contents of `Shelf_Command.py`.
+Create a **Python** shelf button and paste the contents of `launch.py`.
 
 ## Usage
 

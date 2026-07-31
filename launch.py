@@ -1,4 +1,4 @@
-"""Paste this file's contents into a Maya Python shelf button."""
+"""Maya shelf entry point for Finger SDK Tool."""
 
 from pathlib import Path
 import importlib.util
@@ -28,4 +28,3 @@ module = importlib.util.module_from_spec(spec)
 sys.modules[module_name] = module
 spec.loader.exec_module(module)
 module.show()
-
