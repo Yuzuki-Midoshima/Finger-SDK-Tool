@@ -1,4 +1,7 @@
-"""Paste this file's contents into a Maya Python shelf button."""
+"""Paste this file's contents into a Maya *Python* shelf button.
+
+Do not paste main.py or builder.py into the shelf.
+"""
 
 from pathlib import Path
 import importlib.util
@@ -28,4 +31,3 @@ module = importlib.util.module_from_spec(spec)
 sys.modules[module_name] = module
 spec.loader.exec_module(module)
 module.show()
-

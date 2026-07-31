@@ -17,7 +17,15 @@ except ImportError:
     from shiboken2 import wrapInstance
 
 
-TOOL_ROOT = Path(__file__).resolve().parent
+try:
+    TOOL_ROOT = Path(__file__).resolve().parent
+except NameError:
+    # Maya shelf commands are evaluated from a string and have no __file__.
+    TOOL_ROOT = (
+        Path(cmds.internalVar(userAppDir=True))
+        / "scripts"
+        / "Finger-SDK-Tool"
+    )
 TEMPLATE_DIR = TOOL_ROOT / "templates"
 WINDOW_OBJECT = "FingerSDKTool_Window"
 

@@ -9,7 +9,15 @@ import maya.cmds as cmds
 from core import ROTATION_AXES, load_pose, resolve_scene_joint
 
 
-TOOL_ROOT = Path(__file__).resolve().parent
+try:
+    TOOL_ROOT = Path(__file__).resolve().parent
+except NameError:
+    # Support direct execution from Maya's Script Editor or a shelf command.
+    TOOL_ROOT = (
+        Path(cmds.internalVar(userAppDir=True))
+        / "scripts"
+        / "Finger-SDK-Tool"
+    )
 RESOURCE_DIR = TOOL_ROOT / "resources"
 
 
