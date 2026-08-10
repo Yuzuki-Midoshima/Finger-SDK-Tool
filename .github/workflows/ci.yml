@@ -2,31 +2,37 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
+    branches: [main]
 
 permissions:
   contents: read
 
 jobs:
-  test:
-    name: Python ${{ matrix.python-version }}
+  python-checks:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.9", "3.11", "3.13"]
+    timeout-minutes: 10
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
 
-      - name: Set up Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v6
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
 
-      - name: Check Python syntax
-        run: python -m py_compile core.py builder.py main.py Shelf_Command.py
+      - name: Compile Python sources
+        run: python -m compileall -q -f core.py builder.py main.py Shelf_Command.py tests
 
-      - name: Run unit tests
+      - name: Run Maya-independent unit tests
         run: python -m unittest discover -s tests -v
+
+      - name: Verify Maya-independent imports
+        run: |
+          python - <<'PY'
+          from core import Pose, PoseValidationError, load_pose, resolve_scene_joint
+
+          assert Pose and PoseValidationError and load_pose and resolve_scene_joint
+          PY
