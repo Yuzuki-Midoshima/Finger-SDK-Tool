@@ -55,14 +55,24 @@ class FingerSDKTool(QtWidgets.QDialog):
 
     def _build_ui(self):
         root = QtWidgets.QVBoxLayout(self)
+        header = QtWidgets.QGridLayout()
         title = QtWidgets.QLabel("FINGER SDK TOOL")
         title.setObjectName("title")
-        root.addWidget(title)
-        root.addWidget(
-            QtWidgets.QLabel(
-                "ポーズを選択し、左右のフィンガーコントローラーへSDKを構築します。"
-            )
+        header.addWidget(title, 0, 0, 1, 5)
+        description = QtWidgets.QLabel(
+            "ポーズを選択し、左右のフィンガーコントローラーへSDKを構築します。"
         )
+        header.addWidget(description, 1, 0)
+        header.addWidget(QtWidgets.QLabel("左"), 1, 1)
+        self.left_controller_name = QtWidgets.QLineEdit("L_fingers_anim")
+        self.left_controller_name.setFixedWidth(140)
+        header.addWidget(self.left_controller_name, 1, 2)
+        header.addWidget(QtWidgets.QLabel("右"), 1, 3)
+        self.right_controller_name = QtWidgets.QLineEdit("R_fingers_anim")
+        self.right_controller_name.setFixedWidth(140)
+        header.addWidget(self.right_controller_name, 1, 4)
+        header.setColumnStretch(0, 1)
+        root.addLayout(header)
 
         content = QtWidgets.QHBoxLayout()
         root.addLayout(content, 1)
@@ -81,6 +91,13 @@ class FingerSDKTool(QtWidgets.QDialog):
         self.info = QtWidgets.QPlainTextEdit()
         self.info.setReadOnly(True)
         detail_layout.addWidget(self.info)
+
+        self.hide_transforms = QtWidgets.QCheckBox(
+            "移動・回転・スケールを非表示・ロック"
+        )
+        self.hide_transforms.setChecked(True)
+        detail_layout.addWidget(self.hide_transforms)
+
         self.build_button = QtWidgets.QPushButton("BUILD SDK")
         self.build_button.setObjectName("primary")
         self.build_button.setMinimumHeight(44)
@@ -107,16 +124,20 @@ class FingerSDKTool(QtWidgets.QDialog):
             QGroupBox { border:1px solid #3d4650; border-radius:6px;
                         margin-top:10px; padding-top:10px; font-weight:600; }
             QGroupBox::title { subcontrol-origin:margin; left:10px; padding:0 5px; }
-            QListWidget, QPlainTextEdit { background:#171a1f; border:1px solid #39414a;
-                                         border-radius:4px; padding:6px; }
+            QListWidget, QPlainTextEdit, QLineEdit {
+                background:#171a1f; border:1px solid #39414a;
+                border-radius:4px; padding:6px; }
             QListWidget::item { height:30px; }
             QListWidget::item:selected { background:#22658a; }
             QPushButton { background:#343b44; border:1px solid #4b5662;
                           border-radius:4px; padding:8px 12px; font-weight:600; }
             QPushButton:hover { background:#414b56; }
-            QPushButton#primary { background:#1677a8; border-color:#2498cf; }
+            QPushButton#primary { background:#1677a8; border-color:#2498cf;
+                                  color:#ffffff; }
             QPushButton#primary:hover { background:#1988bf; }
             QPushButton:disabled { color:#6f7780; background:#292e34; }
+            QPushButton#primary:disabled { color:#d8e3e9; background:#31566a;
+                                           border-color:#416f86; }
             """
         )
 
@@ -168,6 +189,20 @@ class FingerSDKTool(QtWidgets.QDialog):
         poses = self.selected_poses()
         if not poses:
             return
+        controller_names = {
+            "L": self.left_controller_name.text().strip(),
+            "R": self.right_controller_name.text().strip(),
+        }
+        if not all(controller_names.values()):
+            QtWidgets.QMessageBox.warning(
+                self, "Controller name", "左右のコントローラー名を入力してください"
+            )
+            return
+        if controller_names["L"] == controller_names["R"]:
+            QtWidgets.QMessageBox.warning(
+                self, "Controller name", "左右には異なる名前を指定してください"
+            )
+            return
         answer = QtWidgets.QMessageBox.question(
             self,
             "Build SDK",
@@ -177,19 +212,35 @@ class FingerSDKTool(QtWidgets.QDialog):
         if answer != QtWidgets.QMessageBox.Yes:
             return
 
+        try:
+            importlib.reload(builder)
+            for side in ("L", "R"):
+                builder.validate_controller_target(side, controller_names[side])
+        except Exception as exc:
+            QtWidgets.QMessageBox.critical(self, "Build failed", str(exc))
+            return
+
+        new_controller_names = {
+            name for name in controller_names.values() if not cmds.objExists(name)
+        }
         self.build_button.setEnabled(False)
         self.log.clear()
         QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
-        cmds.undoInfo(openChunk=True, chunkName="FingerSDKToolBuild")
-        build_failed = False
+        results = []
+        build_error = None
+        chunk_open = False
         try:
-            importlib.reload(builder)
+            cmds.undoInfo(openChunk=True, chunkName="FingerSDKToolBuild")
+            chunk_open = True
             controllers = {
-                side: builder.import_finger_controller(side) for side in ("L", "R")
+                side: builder.import_finger_controller(side, controller_names[side])
+                for side in ("L", "R")
             }
             for controller in controllers.values():
+                builder.set_transform_channels_hidden(
+                    controller, self.hide_transforms.isChecked()
+                )
                 builder.cleanup_unselected_template_attrs(controller, poses)
-            results = []
             for pose in poses:
                 for side in ("L", "R"):
                     count = builder.build_pose(pose, side, controllers[side])
@@ -197,21 +248,43 @@ class FingerSDKTool(QtWidgets.QDialog):
                     results.append(line)
                     self.log.appendPlainText(line)
                     QtWidgets.QApplication.processEvents()
-            QtWidgets.QMessageBox.information(
-                self, "Finger SDK Tool", "Build complete\n\n" + "\n".join(results)
-            )
         except Exception as exc:
-            build_failed = True
-            self.log.appendPlainText("ERROR  {}".format(exc))
-            QtWidgets.QMessageBox.critical(
-                self, "Build failed", "{}\n\n変更をロールバックしました。".format(exc)
-            )
+            build_error = exc
         finally:
-            cmds.undoInfo(closeChunk=True)
-            if build_failed:
+            if chunk_open:
+                cmds.undoInfo(closeChunk=True)
+            if (
+                build_error is not None
+                and not cmds.undoInfo(query=True, undoQueueEmpty=True)
+                and cmds.undoInfo(query=True, undoName=True) == "FingerSDKToolBuild"
+            ):
                 cmds.undo()
+            if build_error is not None:
+                leftovers = [
+                    name for name in new_controller_names if cmds.objExists(name)
+                ]
+                if leftovers:
+                    undo_enabled = cmds.undoInfo(query=True, state=True)
+                    try:
+                        cmds.undoInfo(stateWithoutFlush=False)
+                        cmds.delete(leftovers)
+                    finally:
+                        cmds.undoInfo(stateWithoutFlush=undo_enabled)
             QtWidgets.QApplication.restoreOverrideCursor()
             self.build_button.setEnabled(bool(self.selected_poses()))
+
+        if build_error is not None:
+            self.log.appendPlainText("ERROR  {}".format(build_error))
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Build failed",
+                "{}\n\n変更をロールバックしました。".format(build_error),
+            )
+            return
+
+        QtWidgets.QMessageBox.information(
+            self, "Finger SDK Tool", "Build complete\n\n" + "\n".join(results)
+        )
 
 
 _ui = None

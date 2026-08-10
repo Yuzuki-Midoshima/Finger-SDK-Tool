@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import maya.cmds as cmds
@@ -21,6 +22,50 @@ except NameError:
 RESOURCE_DIR = TOOL_ROOT / "resources"
 
 
+def _load_controller_curve(file_path):
+    """Read the first NURBS curve definition from a Maya ASCII asset."""
+    text = file_path.read_text(encoding="utf-8")
+    match = re.search(
+        r'setAttr\s+"\.cc"\s+-type\s+"nurbsCurve"\s+(.*?);',
+        text,
+        re.DOTALL,
+    )
+    if not match:
+        raise RuntimeError("Controller curve data was not found: {}".format(file_path))
+
+    values = match.group(1).split()
+    try:
+        degree = int(values[0])
+        knot_count = int(values[5])
+        knot_start = 6
+        knot_end = knot_start + knot_count
+        knots = [float(value) for value in values[knot_start:knot_end]]
+        point_count = int(values[knot_end])
+        point_values = [float(value) for value in values[knot_end + 1 :]]
+        if len(point_values) != point_count * 3:
+            raise ValueError("Unexpected CV count")
+        points = [
+            tuple(point_values[index : index + 3])
+            for index in range(0, len(point_values), 3)
+        ]
+    except (IndexError, TypeError, ValueError) as exc:
+        raise RuntimeError(
+            "Invalid controller curve data: {}".format(file_path)
+        ) from exc
+    return degree, knots, points
+
+
+def set_transform_channels_hidden(controller, hidden):
+    """Hide or show transform channels on a finger controller."""
+    if not cmds.objExists(controller):
+        raise RuntimeError("Missing controller: {}".format(controller))
+
+    for group in ("translate", "rotate", "scale"):
+        for axis in "XYZ":
+            plug = "{}.{}{}".format(controller, group, axis)
+            cmds.setAttr(plug, lock=hidden, keyable=not hidden, channelBox=False)
+
+
 def ensure_driver_attr(controller, attr_name, maximum):
     if not cmds.objExists(controller):
         raise RuntimeError("Missing controller: {}".format(controller))
@@ -36,11 +81,15 @@ def ensure_driver_attr(controller, attr_name, maximum):
         )
 
 
-def import_finger_controller(side):
-    """Return an existing controller or import and place a new one."""
-    target_name = "{}_fingers_anim".format(side)
-    if cmds.objExists(target_name):
-        return target_name
+def validate_controller_target(side, controller_name=None):
+    """Validate one controller target before scene changes begin."""
+    target_name = (
+        "{}_fingers_anim".format(side)
+        if controller_name is None
+        else controller_name.strip()
+    )
+    if not target_name:
+        raise ValueError("Controller name cannot be empty")
 
     file_path = RESOURCE_DIR / "fingers_anim.ma"
     wrist = "{}_wrist_skn_jnt".format(side)
@@ -48,30 +97,26 @@ def import_finger_controller(side):
         raise RuntimeError("Missing controller asset: {}".format(file_path))
     if not cmds.objExists(wrist):
         raise RuntimeError("Missing wrist joint: {}".format(wrist))
+    return target_name
 
-    before = set(cmds.ls(assemblies=True) or [])
-    cmds.file(
-        str(file_path),
-        i=True,
-        ignoreVersion=True,
-        mergeNamespacesOnClash=False,
-        namespace=":",
-        returnNewNodes=True,
+
+def import_finger_controller(side, controller_name=None):
+    """Return an existing controller or import and place a new one."""
+    target_name = validate_controller_target(side, controller_name)
+    if cmds.objExists(target_name):
+        return target_name
+
+    file_path = RESOURCE_DIR / "fingers_anim.ma"
+    wrist = "{}_wrist_skn_jnt".format(side)
+
+    degree, knots, points = _load_controller_curve(file_path)
+    controller = cmds.curve(
+        degree=degree,
+        knot=knots,
+        point=points,
+        name=target_name,
     )
-    new_roots = set(cmds.ls(assemblies=True) or []) - before
-    candidates = [
-        node
-        for node in new_roots
-        if cmds.listRelatives(node, shapes=True, type="nurbsCurve")
-    ]
-    if len(candidates) != 1:
-        raise RuntimeError(
-            "Expected one imported controller, found {}".format(len(candidates))
-        )
-
-    controller = candidates[0]
     cmds.delete(cmds.parentConstraint(wrist, controller, maintainOffset=False))
-    controller = cmds.rename(controller, target_name)
     cmds.parent(controller, wrist)
     cmds.setAttr(controller + ".scale", 10, 10, 10, type="double3")
 
