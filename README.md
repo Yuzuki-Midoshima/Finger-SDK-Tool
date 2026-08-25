@@ -1,5 +1,7 @@
 # Finger SDK Tool
 
+![Finger SDK Tool UI](docs/images/finger-sdk-ui.png)
+
 Autodesk Maya向けの、**JSONベースのPose DataからFinger SDK（Set Driven Key）を自動構築するリギングツール**です。
 
 複数の指Jointに対して繰り返し行うSDK設定を自動化するとともに、**キャラクター固有のPose DataとSDK構築処理を分離**することで、ポーズの追加・調整・再構築を行いやすくしています。
@@ -23,10 +25,10 @@ Autodesk Maya向けの、**JSONベースのPose DataからFinger SDK（Set Drive
   左右で共通のPose Dataを利用し、`L_` / `R_` をツール側で解決します。
 
 * **Idempotent Rebuild**
-  同じポーズを再BuildしてもSDK Curveが重複せず、既存データを整理して更新できます。
+  同じPoseを再BuildしてもSDK Curveが重複しないよう、Build対象に関連する既存SDKを整理して再構築します。
 
 * **Validation / Rollback**
-  Scene変更前のValidationと、エラー発生時のRollbackに対応しています。
+  Build前にPose DataやControllerなどの主要項目を検証し、処理中にエラーが発生した場合はMayaのUndoを利用して可能な範囲でRollbackを行います。
 
 * **Maintainable Architecture**
   UI / Data Processing / Maya Scene Operationsを分離し、機能追加や修正の影響範囲を抑えています。
@@ -83,6 +85,8 @@ Maya SDK Network
 
 ### JSON-based Pose Library
 
+![Pose Library selection](docs/images/finger-sdk-pose-library.png)
+
 Finger PoseをPythonコードへ直接記述せず、JSONファイルとして管理します。
 
 ```json
@@ -106,6 +110,12 @@ Pose DataとBuild Logicを分離しているため、ポーズ値を変更する
 
 ### Automatic SDK Build
 
+![SDK build ready](docs/images/finger-sdk-build-ready.png)
+
+![SDK build confirmation](docs/images/finger-sdk-build-confirmation.png)
+
+![SDK build complete](docs/images/finger-sdk-build-complete.png)
+
 UIから使用したいPoseを選択し、`BUILD SDK`を実行すると、JSONの定義をもとにFinger SDK Networkを構築します。
 
 ```text
@@ -127,7 +137,7 @@ Finger Joint
 
 Ctrl / Shiftによる複数選択に対応しています。Fist / Relax / Spread / Flex Curlなど、必要なPoseをまとめて選択して一度にBuildできます。
 
-UI上では、Driver Attribute、Driver Value、Target Joint Countを確認してから処理を実行できます。
+UI上では、Driver Attribute、Driver Value、Pose Definitionに含まれるJoint Countを確認してから処理を実行できます。
 
 ### Left / Right Resolution
 
@@ -150,24 +160,28 @@ R_index1_jnt
 
 ### Idempotent Rebuild
 
+![SDK rebuild confirmation](docs/images/finger-sdk-rebuild-confirmation.png)
+
 Pose Dataを調整したあとも、同じBuild操作でSDKを更新できます。
 
 ```text
 Existing SDK
      │
      ▼
-Managed SDK Detection
+Target SDK Cleanup
      │
      ▼
-Remove / Replace
+Rebuild
      │
      ▼
 Updated SDK
 ```
 
-同じPoseを繰り返しBuildしても、ツールが管理するSDK Curveが重複しないようにしています。
+Rebuild時には、今回BuildするPoseのDriver Attributeに関連する既存SDKを整理してから再構築します。
 
-「最初に一度だけ実行するツール」ではなく、**制作中の調整サイクルで繰り返し使用できること**を重視しています。
+これにより、他のユーザー定義Attributeや無関係なSDKへ影響する範囲を限定しながら、同じPoseを繰り返しBuildした際のSDK Curve重複を防ぎます。
+
+「最初に一度だけ実行するツール」ではなく、**制作中の調整 → 確認 → 修正 → 再構築を繰り返せること**を重視しています。
 
 ---
 
@@ -176,7 +190,7 @@ Updated SDK
 1. 対象Character RigをMayaで開く
 2. Finger SDK Toolを起動
 3. Libraryから必要なPoseを選択
-4. Driver Attribute / Value / Joint Countを確認
+4. Driver Attribute / Value / Pose Definition Joint Countを確認
 5. `BUILD SDK`を実行
 6. Finger Controller / SDK Networkを自動構築
 7. Maya上で動作を確認
@@ -255,7 +269,9 @@ JSONはテキスト形式のため差分確認もしやすく、Pose DataをVers
 
 ### Safe Iteration
 
-制作中の **調整 → 確認 → 修正 → 再構築** を支えるため、Pre-build Validation、Idempotent Rebuild、Single Undo、Automatic Rollbackを組み合わせています。
+制作中の **調整 → 確認 → 修正 → 再構築** を支えるため、主要項目のPre-build Validation、既存SDKのCleanup、Single Undo、Maya Undoを利用したRollbackを組み合わせています。
+
+Pose Dataの修正後も同じBuild Workflowを繰り返せるようにすることで、試行錯誤しやすく、問題が発生した場合にも操作を戻しやすい構成を意識しています。
 
 ---
 
@@ -319,11 +335,19 @@ UI、データ処理、Maya Scene操作を分離しています。
 
 ## Validation / Safety
 
-Sceneを変更する前に、JSON Structure、Pose Name、Driver Attribute、Driver Value、Joint Name、Supported Channel、Target Node、Controllerを検証します。
+Build開始前に、Pose Data、Controller、Driver Attributeなどの主要項目と、Pose Definitionで使用するFinger Jointを確認します。
 
-問題がある場合はBuildを開始せず、Sceneが途中まで変更された状態になることを防ぎます。
+一部のFinger JointがScene上に存在しない場合は、不足しているJointをWarningで表示し、存在するJointのみを対象にBuildを続行するか、処理を中止するか選択できます。
 
-さらに、Single Undo、Automatic Rollback、Existing SDK Cleanup、Duplicate Preventionに対応しています。
+対象となるFinger Jointが1つも見つからないPoseまたはSideがある場合は、Buildを開始せずエラーとして処理します。
+
+Build処理はひとつのUndo Chunkとしてまとめています。
+
+処理中にエラーが発生した場合は、MayaのUndoが利用可能で、作成したUndo Chunkを確認できる場合にRollbackを実行します。
+
+これにより通常のMaya環境では途中まで行われたBuild処理を戻せるようにしていますが、Undoが無効になっている特殊な環境では完全な復元を保証するものではありません。
+
+Rebuild時には今回BuildするPoseのDriver Attributeに関連する既存SDK Curveを整理してから再構築することで、同じPoseを繰り返しBuildした際のCurve重複を防いでいます。
 
 ---
 
@@ -335,7 +359,7 @@ Mayaに依存しないCore Logicを分離し、Pure PythonのUnit Testを実装�
 python -m unittest discover -s tests -v
 ```
 
-Pose JSON Loading、Pose Validation、Joint Name Resolution、Left / Right Resolutionなどをテストしています。
+Pose JSON Loading、Pose Validation、Joint Name Resolution、Left / Right Resolution、Missing Joint Detection、Build対象外Attributeを保持するCleanup Regressionなどをテストしています。
 
 Mayaとの統合部分については、Controller Generation、Left / Right Build、Multiple Pose Build、SDK Rebuild、Duplicate Prevention、Rollback、Single Undoを実際のScene上で確認します。
 
@@ -371,7 +395,7 @@ Python 3.9 / 3.11 / 3.13でテストを実行し、Maya非依存部分のRegress
 * JSON Pose Validation
 * Left / Right Joint Name Resolution
 * Set Driven Key Network Construction
-* Managed SDK Detection / Replacement
+* Existing SDK Cleanup / Rebuild
 * Idempotent Rebuild
 * Single Undo / Rollback
 * Maya-independent Core Testing
@@ -380,7 +404,7 @@ Python 3.9 / 3.11 / 3.13でテストを実行し、Maya非依存部分のRegress
 
 ## Requirements
 
-* Autodesk Maya 2022以降
+* Autodesk Maya 2022–2026
 * Python 3
 * 対応するFinger Joint Structure
 * `L_` / `R_` Prefixを使用するRig
@@ -458,7 +482,6 @@ Finger-SDK-Tool/
 │  └─ JSON Validation / Name Resolution
 ├─ builder.py
 │  └─ Maya Scene Operations / SDK Construction
-├─ Shelf_Command.py
 ├─ templates/
 │  ├─ fist.json
 │  ├─ relax.json
@@ -467,7 +490,8 @@ Finger-SDK-Tool/
 ├─ resources/
 │  └─ fingers_anim.ma
 ├─ tests/
-│  └─ test_core.py
+│  ├─ test_core.py
+│  └─ test_builder.py
 ├─ .github/
 │  └─ workflows/
 │     └─ ci.yml
@@ -486,7 +510,7 @@ Finger-SDK-Tool/
 * SDK Rebuild
 * Duplicate Prevention
 * Controller Generation
-* Pre-build Validation
+* Pre-build Core Validation
 * Single Undo / Rollback
 
 ### Supported Driven Channels
@@ -502,6 +526,7 @@ rotateZ
 * 付属TemplateはDiana RigのNaming / Joint Structureを基準としています
 * Joint名はTemplate Definitionと対応している必要があります
 * 現在はFinger SDKを対象としており、汎用SDK Builderではありません
+* SDK Curveにはツール固有のOwnership Tagを付与していません。Rebuildでは、今回BuildするDriver Attributeに関連する既存SDKを対象にCleanupします。
 
 ただし、Pose DataとBuild Logicを分離しているため、キャラクターごとのPose Dataを追加・変更しやすい構造にしています。
 
@@ -525,7 +550,7 @@ Maintainable Architecture
 Reusable SDK Workflow
 ```
 
-現在は、単に「SDKを自動で作るツール」ではなく、**データを差し替えながら、安全に繰り返し構築できる仕組み**として設計しています。
+現在は、単に「SDKを自動で作るツール」ではなく、**Pose Dataを差し替えながら、調整と再構築を繰り返せる仕組み**として設計しています。
 
 保守性・拡張性・共同制作での扱いやすさを考え、**Pose Dataを調整する人とBuild Logicを管理する人が役割を分けられる構造**を目指しました。
 
