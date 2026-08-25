@@ -185,6 +185,50 @@ class FingerSDKTool(QtWidgets.QDialog):
             )
         )
 
+    def confirm_missing_joints(self, poses):
+        missing_groups = []
+        empty_groups = []
+        for pose in poses:
+            for side in ("L", "R"):
+                targets, missing = builder.resolve_pose_targets(pose, side)
+                if not targets:
+                    empty_groups.append((pose.name, side, missing))
+                elif missing:
+                    missing_groups.append((pose.name, side, missing))
+
+        if empty_groups:
+            details = []
+            for pose_name, side, missing in empty_groups:
+                details.append("{} ({})".format(pose_name, side))
+                details.extend("- {}".format(joint) for joint in missing)
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Missing Finger Joints",
+                "対象となるFinger JointがScene上に見つかりません。\n\n"
+                + "\n".join(details),
+            )
+            return False
+
+        if not missing_groups:
+            return True
+
+        details = []
+        for pose_name, side, missing in missing_groups:
+            details.append("{} ({})".format(pose_name, side))
+            details.extend("- {}".format(joint) for joint in missing)
+            details.append("")
+        answer = QtWidgets.QMessageBox.question(
+            self,
+            "Missing Finger Joints",
+            "一部のFinger Jointが見つかりません。\n\n"
+            "見つからないJoint:\n{}\n"
+            "存在するJointのみを対象にSDKを構築します。\n\n"
+            "続行しますか？".format("\n".join(details).rstrip()),
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.Cancel,
+            QtWidgets.QMessageBox.Cancel,
+        )
+        return answer == QtWidgets.QMessageBox.Yes
+
     def build_selected(self):
         poses = self.selected_poses()
         if not poses:
@@ -207,7 +251,9 @@ class FingerSDKTool(QtWidgets.QDialog):
             self,
             "Build SDK",
             "{}ポーズを左右のリグに構築しますか？\n"
-            "既存のツール管理SDKは置き換えられます。".format(len(poses)),
+            "選択したPoseに関連する既存SDKを整理して再構築します。".format(
+                len(poses)
+            ),
         )
         if answer != QtWidgets.QMessageBox.Yes:
             return
@@ -218,6 +264,9 @@ class FingerSDKTool(QtWidgets.QDialog):
                 builder.validate_controller_target(side, controller_names[side])
         except Exception as exc:
             QtWidgets.QMessageBox.critical(self, "Build failed", str(exc))
+            return
+
+        if not self.confirm_missing_joints(poses):
             return
 
         new_controller_names = {
@@ -240,7 +289,6 @@ class FingerSDKTool(QtWidgets.QDialog):
                 builder.set_transform_channels_hidden(
                     controller, self.hide_transforms.isChecked()
                 )
-                builder.cleanup_unselected_template_attrs(controller, poses)
             for pose in poses:
                 for side in ("L", "R"):
                     count = builder.build_pose(pose, side, controllers[side])

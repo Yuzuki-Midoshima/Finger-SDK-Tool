@@ -132,42 +132,27 @@ def import_finger_controller(side, controller_name=None):
     return controller
 
 
-def remove_driver_sdk(controller, attr_name):
-    if not cmds.objExists(controller):
-        return
-    if not cmds.attributeQuery(attr_name, node=controller, exists=True):
-        return
-
-    plug = "{}.{}".format(controller, attr_name)
-    curves = cmds.listConnections(
-        plug, source=False, destination=True, type="animCurve"
-    ) or []
-    if curves:
-        cmds.delete(list(set(curves)))
-    try:
-        cmds.deleteAttr(plug)
-    except RuntimeError as exc:
-        raise RuntimeError("Could not remove {}: {}".format(plug, exc)) from exc
-
-
-def cleanup_unselected_template_attrs(controller, poses):
-    selected = {pose.driver_attr for pose in poses}
-    for attr in cmds.listAttr(controller, userDefined=True) or []:
-        if attr not in selected:
-            remove_driver_sdk(controller, attr)
-    return selected
+def resolve_pose_targets(pose, side):
+    """Return existing targets and missing resolved joint names for one pose/side."""
+    targets = []
+    missing = []
+    for key, values in pose.joints.items():
+        joint = resolve_scene_joint(key, side)
+        if not joint:
+            continue
+        if cmds.objExists(joint):
+            targets.append((joint, values))
+        else:
+            missing.append(joint)
+    return targets, missing
 
 
 def build_pose(pose, side, driver_ctrl):
-    ensure_driver_attr(driver_ctrl, pose.driver_attr, pose.driver_value)
-    driver_plug = "{}.{}".format(driver_ctrl, pose.driver_attr)
-    targets = []
-    for key, values in pose.joints.items():
-        joint = resolve_scene_joint(key, side)
-        if joint and cmds.objExists(joint):
-            targets.append((joint, values))
+    targets, _missing = resolve_pose_targets(pose, side)
     if not targets:
         raise RuntimeError("No matching {} finger joints found".format(side))
+    ensure_driver_attr(driver_ctrl, pose.driver_attr, pose.driver_value)
+    driver_plug = "{}.{}".format(driver_ctrl, pose.driver_attr)
 
     # Rebuilding must replace, not stack, the existing network.
     curves = cmds.listConnections(
