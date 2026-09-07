@@ -1,67 +1,71 @@
 {
     "pose_name": "fist",
     "driver_attr": "fist",
-    "driver_value": 10,
+    "driver_type": "number",
+    "driver_min": 0.0,
+    "driver_value": 10.0,
+    "driver_off_name": "OFF",
+    "driver_on_name": "ON",
     "joints": {
         "index1_jnt": {
-            "rotateX": 0.0,
-            "rotateY": 0.0,
-            "rotateZ": -75.16420478195305
+            "rotateX": 1.17704,
+            "rotateY": 6.06876,
+            "rotateZ": -49.6181
         },
         "index2_jnt": {
-            "rotateX": 0.0,
-            "rotateY": 0.0,
-            "rotateZ": -85.36803965842019
+            "rotateX": -1.79498,
+            "rotateY": 21.8437,
+            "rotateZ": -90.1825
         },
         "index3_jnt": {
-            "rotateX": 0.0,
-            "rotateY": 0.0,
-            "rotateZ": -71.72340469246026
+            "rotateX": 1.60618e-15,
+            "rotateY": 8.06867,
+            "rotateZ": -107.427
         },
         "middle1_jnt": {
             "rotateX": 0.0,
             "rotateY": 0.0,
-            "rotateZ": -59.72809761663773
+            "rotateZ": -59.7281
         },
         "middle2_jnt": {
-            "rotateX": -3.2132564667800887,
-            "rotateY": 0.9667120945633155,
-            "rotateZ": -87.98449304670523
+            "rotateX": -11.5229,
+            "rotateY": 16.1342,
+            "rotateZ": -90.9857
         },
         "middle3_jnt": {
-            "rotateX": 0.0,
-            "rotateY": 0.0,
-            "rotateZ": -60.47088979538201
+            "rotateX": -30.8959,
+            "rotateY": 11.0931,
+            "rotateZ": -55.365
         },
         "ring1_jnt": {
-            "rotateX": 0.0,
-            "rotateY": 0.0,
-            "rotateZ": -46.51391944212804
+            "rotateX": 12.6104,
+            "rotateY": -5.95655,
+            "rotateZ": -56.6648
         },
         "ring2_jnt": {
             "rotateX": 0.0,
             "rotateY": 0.0,
-            "rotateZ": -85.62416750163409
+            "rotateZ": -85.6242
         },
         "ring3_jnt": {
-            "rotateX": 0.0,
-            "rotateY": 0.0,
-            "rotateZ": -71.90472225009354
+            "rotateX": -9.2705,
+            "rotateY": 6.79869,
+            "rotateZ": -103.395
         },
         "pinky1_jnt": {
-            "rotateX": 0.0,
-            "rotateY": 0.0,
-            "rotateZ": -59.205858989534455
+            "rotateX": 1.3367,
+            "rotateY": -9.16503,
+            "rotateZ": -59.4188
         },
         "pinky2_jnt": {
             "rotateX": 0.0,
             "rotateY": 0.0,
-            "rotateZ": -89.5044567934636
+            "rotateZ": -89.5045
         },
         "pinky3_jnt": {
             "rotateX": 0.0,
             "rotateY": 0.0,
-            "rotateZ": -73.22854355892466
+            "rotateZ": -107.207
         },
         "pinky4_jnt": {
             "rotateX": 0.0,
@@ -69,19 +73,19 @@
             "rotateZ": 0.0
         },
         "thumb_palm_jnt": {
-            "rotateX": 5.060734755320787,
-            "rotateY": 10.181789796211211,
-            "rotateZ": -15.925396915072016
+            "rotateX": 5.06073,
+            "rotateY": 10.1818,
+            "rotateZ": -15.9254
         },
         "thumb1_jnt": {
-            "rotateX": 40.39947586207697,
-            "rotateY": 40.99526139062506,
-            "rotateZ": -38.0676988250633
+            "rotateX": 19.4529,
+            "rotateY": 40.9953,
+            "rotateZ": -38.0677
         },
         "thumb2_jnt": {
-            "rotateX": 1.1371335489299828,
-            "rotateY": 0.28360394152571394,
-            "rotateZ": -14.002196769524078
+            "rotateX": 1.13544,
+            "rotateY": 49.8104,
+            "rotateZ": -17.3973
         },
         "thumb3_jnt": {
             "rotateX": 0.0,

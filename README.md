@@ -1,4 +1,4 @@
-# Finger SDK Tool
+# Finger SDK Tool ![CI](https://github.com/Yuzuki-Midoshima/Finger-SDK-Tool/actions/workflows/ci.yml/badge.svg) ![Maya](https://img.shields.io/badge/Autodesk%20Maya-2026-0696D7) ![Python](https://img.shields.io/badge/Python-3.x-3776AB)
 
 ![Finger SDK Tool UI](docs/images/finger-sdk-ui.png)
 
