@@ -8,21 +8,20 @@ Autodesk Maya向けの、**指のSDK（Set Driven Key）を自動構築するリ
 
 ![Finger SDK Tool](docs/images/finger-sdk-ui.png)
 
+指ごとに何度も繰り返すドリブンキーの設定を自動化し、  
+**ポーズデータを選んで実行するだけで、指コントローラーとSDKをまとめて構築できます。**
 
-指ごとに何度も繰り返すドリブンキーの設定を自動化し、**ポーズデータを選んで実行するだけで、指コントローラーとSDKをまとめて構築できます。**
-
-ポーズの数値はJSONとしてツール本体から分離しているため、  
-Pythonコードを変更せずにポーズの追加・調整・再構築を行えます。
+ポーズの数値はJSONとしてツール本体から分離しているため、Pythonコードを変更せずにポーズの追加・調整・再構築を行えます。
 
 ---
 
 ## 主な機能
 
 - **指SDKの自動構築**  
-  選択したポーズデータからDriver AttributeとDriven Keyをまとめて作成します。
+  選択したポーズデータからドライバーアトリビュートとドリブンキーをまとめて作成します。
 
 - **複数ポーズをまとめて構築**  
-  Fist / Relax / Spread / Flex Curlなど、必要なポーズを一度にビルドできます。
+  握り / リラックス / 開閉 / 曲げなど、必要なポーズを一度に構築できます。
 
 - **左右共通のポーズデータを使用**  
   `L_` / `R_` をツール側で判別するため、左右で同じデータを二重に管理する必要がありません。
@@ -39,7 +38,7 @@ Pythonコードを変更せずにポーズの追加・調整・再構築を行�
 
 ![Finger SDK Pose](docs/gifs/finger_sdk_tool.gif)
 
-多数の指Jointへ個別にDriven Keyを設定する代わりに、  
+多数の指ジョイントへ個別にドリブンキーを設定する代わりに、  
 ツールから使用したいポーズを選択してSDKをまとめて構築します。
 
 ```text
@@ -70,11 +69,11 @@ Maya上で動作確認
 指のポーズをPythonコードへ直接書き込まず、  
 **JSONファイルとして管理**します。
 
-例えばFistやRelaxなど、それぞれのポーズに対して
+例えば握りやリラックスなど、それぞれのポーズに対して
 
-- 使用するDriver Attribute
-- Driverの値
-- 各Jointの回転値
+- 使用するドライバーアトリビュート
+- ドライバーの値
+- 各ジョイントの回転値
 
 を保存します。
 
@@ -108,29 +107,29 @@ Maya上で動作確認
 
 実行前に、
 
-- Driver Attribute
-- Driver Value
-- 対象Joint数
+- ドライバーアトリビュート
+- ドライバーの値
+- 対象ジョイント数
 
 などを確認できます。
 
 ![SDK Build Complete](docs/images/finger-sdk-build-complete.png)
 
-Buildを実行すると、
+構築を実行すると、
 
 ```text
 指コントローラー
       ↓
-Driver Attribute
+ドライバーアトリビュート
       ↓
-SDK Curve
+SDKカーブ
       ↓
-指Joint
+指ジョイント
 ```
 
 という接続を自動で構築します。
 
-大量のDriven KeyをJointごとに手作業で設定する必要がなく、  
+大量のドリブンキーをジョイントごとに手作業で設定する必要がなく、  
 **同じルールで一貫した指SDKを作成できます。**
 
 ---
@@ -142,13 +141,13 @@ Ctrl / Shift / ドラッグによる複数選択に対応しています。
 例えば、
 
 ```text
-Fist
-Relax
-Finger Spread
-Flex Curl
+握り
+リラックス
+指の開閉
+指の曲げ
 ```
 
-などのポーズをまとめて選択し一括でビルドできます。
+などのポーズをまとめて選択し一括で構築できます。
 
 ポーズごとに何度も同じ操作を繰り返す必要がないため、キャラクターセットアップ時の反復作業を減らせます。
 
@@ -156,13 +155,13 @@ Flex Curl
 
 ## 左右の自動判別
 
-ポーズデータでは、Joint名を
+ポーズデータでは、ジョイント名を
 
 ```text
 index1_jnt
 ```
 
-のように左右のPrefixを付けずに記述できます。
+のように左右の接頭辞を付けずに記述できます。
 
 生成時にツール側で、
 
@@ -178,20 +177,22 @@ R_index1_jnt
 
 ---
 
-## 異なるJoint構成への対応
+---
+
+## 異なるジョイント構成への対応
 
 ![Finger Joint Mapping](docs/gifs/finger-joint-mapping.gif)
 
-RigごとにJointの命名規則や階層構造が異なる場合でも、
-対象Jointを手動で指定できます。
+リグごとにジョイントの命名規則や階層構造が異なる場合でも、  
+対象ジョイントを手動で指定できます。
 
-通常は名前から対象Jointを自動判定しますが、
-自動判定できない場合はUI上から各指のJointを指定できます。
+通常は名前から対象ジョイントを自動判定しますが、  
+自動判定できない場合は画面上から各指のジョイントを指定できます。
 
-また、1つ目のJointを指定すると、
-その下の階層から子Jointを自動取得します。
+また、1つ目のジョイントを指定すると、  
+その下の階層から子ジョイントを自動取得します。
 
-親指についてはRig構成に合わせて、
+親指についてはリグ構成に合わせて、
 
 ```text
 自動判定
@@ -215,15 +216,14 @@ RigごとにJointの命名規則や階層構造が異なる場合でも、
 更新されたSDK
 ```
 
-Build対象に関連する既存SDKを整理してから再構築するため、  
-同じポーズを繰り返しBuildしてもSDK Curveが重複しないようにしています。
+構築対象に関連する既存SDKを整理してから再構築するため、  
+同じポーズを繰り返し構築してもSDKカーブが重複しないようにしています。
 
 このツールでは、
 
 **作成 → 動作確認 → ポーズ修正 → 再構築**
 
 という制作中の試行錯誤を前提にしています。
-
 
 ## コントローラー
 
@@ -232,7 +232,6 @@ Build対象に関連する既存SDKを整理してから再構築するため、
 ![NAME](docs/images/name.png)
 
 コントローラーは
-
 
 ---
 
@@ -245,8 +244,8 @@ Finger SDKを手作業で設定する場合、
 
 - 同じ設定作業を何度も繰り返す
 - 左右で設定差が発生する
-- JointやChannelの指定を間違える
-- ポーズ修正のたびにSDK Curveを編集する
+- ジョイントやチャンネルの指定を間違える
+- ポーズ修正のたびにSDKカーブを編集する
 - キャラクター固有の数値がPythonコードへ増えていく
 
 といった問題が起こりやすくなります。
@@ -260,7 +259,7 @@ Finger SDKを手作業で設定する場合、
     ↓
 データ確認
     ↓
-左右・Joint名を解決
+左右・ジョイント名を解決
     ↓
 共通の構築処理
     ↓
@@ -274,15 +273,15 @@ MayaのSDK
 
 # 制作フロー
 
-1. 対象のCharacter RigをMayaで開く
+1. 対象のキャラクターリグをMayaで開く
 2. Finger SDK Toolを起動
 3. 使用したいポーズを選択
-4. Driver Attribute / Value / Joint数を確認
+4. ドライバーアトリビュート / 値 / ジョイント数を確認
 5. `BUILD SDK`を実行
 6. 指コントローラーとSDKを自動構築
 7. Maya上で指の動きを確認
 8. 必要に応じてJSONのポーズ値を修正
-9. 再度Buildして更新
+9. 再度構築して更新
 
 ```text
 ポーズ選択
@@ -309,7 +308,7 @@ MayaのSDK
 ポーズデータ      → JSON
 データ確認        → core.py
 Maya上の構築      → builder.py
-UI                → main.py
+画面              → main.py
 ```
 
 例えば新しいポーズを追加する場合、
@@ -334,16 +333,16 @@ SDK完成
 # チーム制作を想定した構成
 
 ```text
-TA / Programmer
+TA / プログラマー
       ↓
 SDK構築処理
 
-Rigger / Artist
+リガー / アーティスト
       ↓
 ポーズデータ
 ```
 
-ポーズを調整するためにBuilder本体を直接編集する必要がないため、  
+ポーズを調整するために構築処理本体を直接編集する必要がないため、  
 **処理ロジックとポーズ調整を分けて扱えます。**
 
 JSONはテキスト形式なのでGit上で変更差分も確認しやすく、  
@@ -353,21 +352,21 @@ JSONはテキスト形式なのでGit上で変更差分も確認しやすく、
 
 # 安全性
 
-Build開始前に、
+構築開始前に、
 
 - ポーズデータ
-- Controller
-- Driver Attribute
-- 使用するFinger Joint
+- コントローラー
+- ドライバーアトリビュート
+- 使用する指ジョイント
 
 などを確認します。
 
-一部のJointが見つからない場合は不足しているJointを表示し、  
-存在するJointだけで続行するか、処理を中止するか選択できます。
+一部のジョイントが見つからない場合は不足しているジョイントを表示し、  
+存在するジョイントだけで続行するか、処理を中止するか選択できます。
 
-対象となるJointが1つも存在しない場合はBuildを開始しません。
+対象となるジョイントが1つも存在しない場合は構築を開始しません。
 
-また、Build処理は1つのUndo Chunkとしてまとめています。
+また、構築処理は1つのUndo処理としてまとめています。
 
 処理中にエラーが発生した場合は、MayaのUndoを利用して  
 可能な範囲で処理前の状態へ戻します。
@@ -381,7 +380,7 @@ Build開始前に、
                         │
           ┌─────────────┴─────────────┐
           │                           │
-      ポーズデータ                    UI
+      ポーズデータ                   画面
          JSON                      main.py
           │                           │
           └─────────────┬─────────────┘
@@ -390,34 +389,34 @@ Build開始前に、
                データ確認 / 名前解決
                         ↓
                     builder.py
-                  Maya Scene操作
+                  Mayaシーン操作
                     SDK構築
                         ↓
-                     Maya Rig
+                     Mayaリグ
 ```
 
 ### `main.py`
 
-- PySide UI
+- PySide画面
 - ポーズ選択
-- Build確認
-- Progress表示
-- Build Workflow管理
+- 構築確認
+- 進捗表示
+- 構築フロー管理
 
 ### `core.py`
 
 - JSON読み込み
 - ポーズデータ検証
-- Joint名解決
+- ジョイント名解決
 - Mayaに依存しないデータ処理
 
 ### `builder.py`
 
-- Controller生成
-- Driver Attribute生成
-- SDK Curve構築
+- コントローラー生成
+- ドライバーアトリビュート生成
+- SDKカーブ構築
 - 既存SDKの整理
-- Maya Scene操作
+- Mayaシーン操作
 
 ### `templates/`
 
@@ -429,7 +428,7 @@ Build開始前に、
 # テスト
 
 Mayaに依存しない処理を分離し、  
-Pure PythonのUnit Testを実装しています。
+Pure Pythonの単体テストを実装しています。
 
 ```bash
 python -m unittest discover -s tests -v
@@ -439,38 +438,38 @@ python -m unittest discover -s tests -v
 
 - JSON読み込み
 - ポーズデータ検証
-- Joint名解決
+- ジョイント名解決
 - 左右判定
-- Missing Joint検出
-- Rebuild時のCleanup
+- 不足ジョイント検出
+- 再構築時の整理
 
 などを確認しています。
 
 Mayaとの統合部分については、
 
-- Controller生成
-- 左右Build
-- 複数ポーズBuild
+- コントローラー生成
+- 左右構築
+- 複数ポーズ構築
 - SDK再構築
-- Curve重複防止
-- Rollback
-- Single Undo
+- カーブ重複防止
+- 巻き戻し
+- 1回のUndo
 
-を実際のScene上で確認しています。
+を実際のシーン上で確認しています。
 
 ### GitHub Actions
 
 ```text
-Push / Pull Request
+プッシュ / プルリクエスト
         ↓
 Python構文チェック
         ↓
-Unit Test
+単体テスト
         ↓
 結果
 ```
 
-Python 3.9 / 3.11 / 3.13で、Mayaに依存しない処理のRegressionを確認しています。
+Python 3.9 / 3.11 / 3.13で、Mayaに依存しない処理の回帰を確認しています。
 
 ---
 
@@ -487,13 +486,13 @@ Python 3.9 / 3.11 / 3.13で、Mayaに依存しない処理のRegressionを確認
 ### 主な技術要素
 
 - JSONによるポーズデータと処理の分離
-- JSON Pose Validation
-- 左右Joint名の自動解決
-- Set Driven Key Network構築
+- JSONポーズデータの検証
+- 左右ジョイント名の自動解決
+- Set Driven Keyネットワーク構築
 - 既存SDKの整理 / 再構築
-- 重複しないRebuild
-- Single Undo / Rollback
-- Maya非依存処理のUnit Test
+- 重複しない再構築
+- 1回のUndo / 巻き戻し
+- Maya非依存処理の単体テスト
 
 ---
 
@@ -501,12 +500,12 @@ Python 3.9 / 3.11 / 3.13で、Mayaに依存しない処理のRegressionを確認
 
 - Autodesk Maya 2022–2026
 - Python 3
-- 対応するFinger Joint構造
-- `L_` / `R_` Prefixを使用するRig
+- 対応する指ジョイント構造
+- `L_` / `R_` 接頭辞を使用するリグ
 
-外部Python Packageは必要ありません。
+外部Pythonパッケージは必要ありません。
 
-付属のポーズデータはDiana RigのJoint Namingを基準にしています。
+付属のポーズデータはDiana Rigのジョイント命名を基準にしています。
 
 ```text
 L_index1_jnt
@@ -514,49 +513,13 @@ R_pinky3_jnt
 L_thumb_palm_jnt
 ```
 
-使用するRigのJoint名は、`templates/*.json`の定義と対応している必要があります。
+使用するリグのジョイント名は、`templates/*.json`の定義と対応している必要があります。
 
 ---
 
 # インストール
 
-リポジトリをMayaのUser Scripts Directoryへ配置します。
-
-```text
-Documents/
-└─ maya/
-   └─ scripts/
-      └─ Finger-SDK-Tool/
-```
-
-MayaでShelf Buttonを作成し、CommandのLanguageを **Python** に設定して、以下のコードを貼り付けます。
-
-```python
-from pathlib import Path
-import importlib.util
-import sys
-
-import maya.cmds as cmds
-
-
-tool_root = Path(cmds.internalVar(userAppDir=True)) / "scripts" / "Finger-SDK-Tool"
-main_file = tool_root / "main.py"
-
-if not main_file.is_file():
-    cmds.error("Finger SDK Tool was not found: {}".format(main_file))
-
-module_name = "_finger_sdk_tool_main"
-sys.modules.pop(module_name, None)
-spec = importlib.util.spec_from_file_location(module_name, str(main_file))
-if spec is None or spec.loader is None:
-    cmds.error("Could not load: {}".format(main_file))
-
-module = importlib.util.module_from_spec(spec)
-sys.modules[module_name] = module
-spec.loader.exec_module(module)
-module.show()
-```
-
+リポジトリをMayaのユーザースクリプトフォルダ
 
 ---
 
@@ -571,7 +534,7 @@ module.show()
 
 ---
 
-# License
+# ライセンス
 
 MIT License
 

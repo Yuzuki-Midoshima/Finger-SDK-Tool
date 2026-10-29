@@ -41,6 +41,60 @@ def maya_main_window():
     return wrapInstance(int(pointer), QtWidgets.QWidget) if pointer else None
 
 
+class PoseListWidget(QtWidgets.QListWidget):
+    """Pose list whose rows are reordered with a Maya-style middle drag."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._middle_drag_start = None
+
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.MiddleButton:
+            item = self.itemAt(event.pos())
+            if item is None:
+                self._middle_drag_start = None
+                event.accept()
+                return
+            if not item.isSelected():
+                self.clearSelection()
+                item.setSelected(True)
+                self.setCurrentItem(item)
+            self._middle_drag_start = event.pos()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if (
+            self._middle_drag_start is not None
+            and event.buttons() & QtCore.Qt.MiddleButton
+        ):
+            distance = (event.pos() - self._middle_drag_start).manhattanLength()
+            if distance >= QtWidgets.QApplication.startDragDistance():
+                self._middle_drag_start = None
+                self.startDrag(QtCore.Qt.MoveAction)
+            event.accept()
+            return
+        if event.buttons() & QtCore.Qt.LeftButton:
+            # Keep normal extended/range selection on left drag, but reserve
+            # row reordering for the middle button.
+            drag_enabled = self.dragEnabled()
+            self.setDragEnabled(False)
+            try:
+                super().mouseMoveEvent(event)
+            finally:
+                self.setDragEnabled(drag_enabled)
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == QtCore.Qt.MiddleButton:
+            self._middle_drag_start = None
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+
 class MissingJointsDialog(QtWidgets.QDialog):
     """Compact, resizable warning with scrollable joint details."""
 
@@ -270,6 +324,9 @@ class FingerSDKTool(QtWidgets.QDialog):
         )
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
         self.resize(820, 600)
+        self._settings = QtCore.QSettings(
+            "Yuzuki-Midoshima", "Finger SDK Tool"
+        )
         self._poses = {}
         self._pose_editor = None
         self._joint_mapping_dialog = None
@@ -306,6 +363,15 @@ class FingerSDKTool(QtWidgets.QDialog):
         self.right_controller_name = QtWidgets.QLineEdit("R_fingers_anim")
         self.right_controller_name.setFixedWidth(140)
         header.addWidget(self.right_controller_name, 1, 4)
+
+        self.create_thumb_enable = QtWidgets.QCheckBox(
+            "Create Thumb Enable attribute"
+        )
+        self.create_thumb_enable.setChecked(True)
+        self.create_thumb_enable.setToolTip(
+            "Add Thumb Enable (OFF/ON) to each generated Finger SDK Controller"
+        )
+        header.addWidget(self.create_thumb_enable, 2, 0, 1, 5)
         header.setColumnStretch(0, 1)
         root.addLayout(header)
 
@@ -314,8 +380,11 @@ class FingerSDKTool(QtWidgets.QDialog):
 
         library_group = QtWidgets.QGroupBox("POSE LIBRARY")
         library_layout = QtWidgets.QVBoxLayout(library_group)
-        self.pose_list = QtWidgets.QListWidget()
+        self.pose_list = PoseListWidget()
         self.pose_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.pose_list.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
+        self.pose_list.setDefaultDropAction(QtCore.Qt.MoveAction)
+        self.pose_list.setDragDropOverwriteMode(False)
         library_layout.addWidget(self.pose_list)
         self.refresh_button = QtWidgets.QPushButton("ライブラリを更新")
         self.edit_library_button = QtWidgets.QPushButton("ポーズ登録・編集")
@@ -383,6 +452,7 @@ class FingerSDKTool(QtWidgets.QDialog):
         self.edit_library_button.clicked.connect(self.open_pose_editor)
         self.joint_mapping_button.clicked.connect(self.open_joint_mapping)
         self.pose_list.itemSelectionChanged.connect(self.update_selection_info)
+        self.pose_list.model().rowsMoved.connect(self.save_pose_order)
         self.build_button.clicked.connect(self.build_selected)
         self.setStyleSheet(
             """
@@ -519,6 +589,21 @@ class FingerSDKTool(QtWidgets.QDialog):
             if item.data(QtCore.Qt.UserRole) in self._poses
         ]
 
+    def saved_pose_order(self):
+        """Return the stored filename order in a PySide2/6-compatible form."""
+        order = self._settings.value("poseOrder", [])
+        if isinstance(order, str):
+            return [order]
+        return list(order or [])
+
+    def save_pose_order(self, *_args):
+        """Persist the current drag-and-drop order across tool sessions."""
+        order = [
+            self.pose_list.item(row).data(QtCore.Qt.UserRole)
+            for row in range(self.pose_list.count())
+        ]
+        self._settings.setValue("poseOrder", order)
+
     def refresh_library(self):
         selected = {
             item.data(QtCore.Qt.UserRole) for item in self.pose_list.selectedItems()
@@ -526,7 +611,12 @@ class FingerSDKTool(QtWidgets.QDialog):
         self.pose_list.clear()
         self._poses.clear()
         errors = []
-        for path in sorted(TEMPLATE_DIR.glob("*.json")):
+        paths = {path.name: path for path in TEMPLATE_DIR.glob("*.json")}
+        saved_order = self.saved_pose_order()
+        ordered_names = [name for name in saved_order if name in paths]
+        ordered_names.extend(sorted(name for name in paths if name not in saved_order))
+        for name in ordered_names:
+            path = paths[name]
             try:
                 pose = load_pose(path)
                 self._poses[path.name] = pose
@@ -616,6 +706,7 @@ class FingerSDKTool(QtWidgets.QDialog):
             "L": self.left_controller_name.text().strip(),
             "R": self.right_controller_name.text().strip(),
         }
+        use_thumb_enable = self.create_thumb_enable.isChecked()
         if not all(controller_names.values()):
             QtWidgets.QMessageBox.warning(
                 self, "Controller name", "左右のコントローラー名を入力してください"
@@ -675,6 +766,12 @@ class FingerSDKTool(QtWidgets.QDialog):
                 )
                 for side in ("L", "R")
             }
+            thumb_enable_plugs = {
+                side: builder.ensure_thumb_enable_attr(
+                    controllers[side]
+                )
+                for side in ("L", "R")
+            } if use_thumb_enable else {"L": None, "R": None}
             for controller in controllers.values():
                 builder.set_transform_channels_hidden(
                     controller, self.hide_transforms.isChecked()
@@ -686,6 +783,7 @@ class FingerSDKTool(QtWidgets.QDialog):
                     controllers[side],
                     self._finger_roots.get(side),
                     self.thumb_mode_for_side(side),
+                    thumb_enable_plug=thumb_enable_plugs[side],
                 )
                 if disconnected:
                     line = "CLEANUP  {}  {} residual rotate inputs".format(
@@ -703,6 +801,7 @@ class FingerSDKTool(QtWidgets.QDialog):
                         self._rotation_inversions.get(side),
                         self.thumb_mode_for_side(side),
                         cleanup_existing=False,
+                        thumb_enable_plug=thumb_enable_plugs[side],
                     )
                     line = "OK  {:<18} {}  {} joints".format(pose.name, side, count)
                     results.append(line)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from pathlib import Path
 
@@ -20,7 +21,11 @@ except NameError:
         / "Finger-SDK-Tool"
     )
 RESOURCE_DIR = TOOL_ROOT / "resources"
+CONTROLLER_SCALE = 12.0
 CONTROLLER_Y_ADDITION = 10.0
+THUMB_ENABLE_ATTR = "thumbEnable"
+THUMB_SWITCH_MARKER = "fingerSDKThumbSwitch"
+THUMB_SDK_CONVERSION_MARKER = "fingerSDKThumbDegrees"
 FINGER_SLOT_PATTERN = re.compile(
     r"^(thumb|index|middle|ring|pinky)_?(palm|\d+)(?:_jnt)?$", re.IGNORECASE
 )
@@ -90,6 +95,139 @@ def ensure_driver_attr(
         cmds.addAttr(controller, **options)
 
 
+def ensure_thumb_enable_attr(controller):
+    """Create and return the Finger SDK Controller's OFF/ON thumb switch."""
+    if not cmds.objExists(controller):
+        raise RuntimeError("Missing Finger SDK Controller: {}".format(controller))
+    plug = "{}.{}".format(controller, THUMB_ENABLE_ATTR)
+    if not cmds.attributeQuery(THUMB_ENABLE_ATTR, node=controller, exists=True):
+        cmds.addAttr(
+            controller,
+            longName=THUMB_ENABLE_ATTR,
+            niceName="Thumb Enable",
+            attributeType="enum",
+            enumName="OFF:ON",
+            defaultValue=1,
+            keyable=True,
+        )
+    return plug
+
+
+def _is_managed_thumb_switch(node):
+    node_type = getattr(cmds, "nodeType", None)
+    return bool(
+        node_type
+        and node_type(node) == "choice"
+        and cmds.attributeQuery(THUMB_SWITCH_MARKER, node=node, exists=True)
+    )
+
+
+def _managed_thumb_switch(driven_plug):
+    sources = cmds.listConnections(
+        driven_plug, source=True, destination=False, plugs=True
+    ) or []
+    for source in sources:
+        node = source.split(".", 1)[0]
+        if source.endswith(".output") and _is_managed_thumb_switch(node):
+            return node
+    return None
+
+
+def _replace_input(source_plug, destination_plug):
+    """Connect one source after removing any previous source from a plug."""
+    current = cmds.listConnections(
+        destination_plug, source=True, destination=False, plugs=True
+    ) or []
+    if current == [source_plug]:
+        return
+    for old_source in current:
+        cmds.disconnectAttr(old_source, destination_plug)
+    cmds.connectAttr(source_plug, destination_plug, force=True)
+
+
+def _ensure_thumb_switch(driven_plug, thumb_enable_plug):
+    """Route FK and SDK inputs through one reusable managed choice node."""
+    switch = _managed_thumb_switch(driven_plug)
+    if switch is None:
+        existing_sources = cmds.listConnections(
+            driven_plug, source=True, destination=False, plugs=True
+        ) or []
+        leaf, axis = driven_plug.rsplit(".", 1)
+        leaf = re.sub(r"[^A-Za-z0-9_]+", "_", leaf.rsplit("|", 1)[-1])
+        switch = cmds.createNode(
+            "choice", name="{}_{}_thumbEnable_choice".format(leaf, axis)
+        )
+        cmds.addAttr(
+            switch,
+            longName=THUMB_SWITCH_MARKER,
+            attributeType="bool",
+            defaultValue=True,
+        )
+        for source in existing_sources:
+            cmds.disconnectAttr(source, driven_plug)
+        if existing_sources:
+            _replace_input(existing_sources[0], switch + ".input[0]")
+        cmds.connectAttr(switch + ".output", driven_plug, force=True)
+    _replace_input(thumb_enable_plug, switch + ".selector")
+    return _ensure_thumb_sdk_conversion(switch)
+
+
+def _ensure_thumb_sdk_conversion(switch):
+    """Convert SDK degree values to Maya's internal radians before choice."""
+    sdk_input = switch + ".input[1]"
+    sources = cmds.listConnections(
+        sdk_input, source=True, destination=False, plugs=True
+    ) or []
+    for source in sources:
+        node = source.split(".", 1)[0]
+        if (
+            source.endswith(".output")
+            and cmds.nodeType(node) == "unitConversion"
+            and cmds.attributeQuery(
+                THUMB_SDK_CONVERSION_MARKER, node=node, exists=True
+            )
+        ):
+            return node + ".input"
+
+    conversion = cmds.createNode(
+        "unitConversion", name=switch + "_sdkDegreesToRadians"
+    )
+    cmds.addAttr(
+        conversion,
+        longName=THUMB_SDK_CONVERSION_MARKER,
+        attributeType="bool",
+        defaultValue=True,
+    )
+    cmds.setAttr(conversion + ".conversionFactor", math.pi / 180.0)
+    for source in sources:
+        cmds.disconnectAttr(source, sdk_input)
+    if sources:
+        _replace_input(sources[0], conversion + ".input")
+    cmds.connectAttr(conversion + ".output", sdk_input, force=True)
+    return conversion + ".input"
+
+
+def _remove_thumb_switch(driven_plug):
+    """Remove a managed switch when legacy direct-SDK mode is requested."""
+    switch = _managed_thumb_switch(driven_plug)
+    if switch is None:
+        return
+    fk_sources = cmds.listConnections(
+        switch + ".input[0]", source=True, destination=False, plugs=True
+    ) or []
+    cmds.disconnectAttr(switch + ".output", driven_plug)
+    if fk_sources:
+        cmds.disconnectAttr(fk_sources[0], switch + ".input[0]")
+        cmds.connectAttr(fk_sources[0], driven_plug, force=True)
+    cmds.delete(switch)
+
+
+def _sdk_driven_plug(driven_plug, is_thumb, thumb_enable_plug):
+    if not is_thumb or not thumb_enable_plug:
+        return driven_plug
+    return _ensure_thumb_switch(driven_plug, thumb_enable_plug)
+
+
 def validate_controller_target(side, controller_name=None, wrist=None):
     """Validate one controller target before scene changes begin."""
     target_name = (
@@ -133,7 +271,13 @@ def import_finger_controller(
     )
     cmds.delete(cmds.parentConstraint(wrist, controller, maintainOffset=False))
     cmds.parent(controller, wrist)
-    cmds.setAttr(controller + ".scale", 10, 10, 10, type="double3")
+    cmds.setAttr(
+        controller + ".scale",
+        CONTROLLER_SCALE,
+        CONTROLLER_SCALE,
+        CONTROLLER_SCALE,
+        type="double3",
+    )
 
     base_rotation = [0.0, 0.0, 0.0]
     if side == "L":
@@ -299,7 +443,11 @@ def _delete_driver_curves(driver_plug):
         return
     for plug in set(orphan_candidates):
         node = plug.split(".", 1)[0]
-        if node_type(node) != "blendWeighted" or ".input[" not in plug:
+        if (
+            not cmds.objExists(node)
+            or node_type(node) != "blendWeighted"
+            or ".input[" not in plug
+        ):
             continue
         incoming = cmds.listConnections(plug, source=True, destination=False) or []
         if not incoming and cmds.objExists(plug):
@@ -307,7 +455,8 @@ def _delete_driver_curves(driver_plug):
 
 
 def prepare_pose_rebuild(
-    poses, side, driver_ctrl, finger_roots=None, thumb_mode="auto"
+    poses, side, driver_ctrl, finger_roots=None, thumb_mode="auto",
+    thumb_enable_plug=None,
 ):
     """Clean selected managed SDKs and detach residual target rotate inputs.
 
@@ -315,12 +464,14 @@ def prepare_pose_rebuild(
     that are not managed anim curves are preserved; only their direct connection
     to a target rotate channel is detached.
     """
-    target_joints = set()
+    target_joints = {}
     for pose in poses:
         entries, _missing = _resolve_pose_target_entries(
             pose, side, finger_roots, thumb_mode
         )
-        target_joints.update(joint for _key, joint, _values in entries)
+        for key, joint, _values in entries:
+            is_thumb = str(key).lower().startswith("thumb")
+            target_joints[joint] = target_joints.get(joint, False) or is_thumb
 
         driver_plug = "{}.{}".format(driver_ctrl, pose.driver_attr)
         if cmds.objExists(driver_plug):
@@ -328,8 +479,14 @@ def prepare_pose_rebuild(
 
     disconnected = []
     for joint in sorted(target_joints):
+        is_thumb = target_joints[joint]
         for axis in ROTATION_AXES:
             driven_plug = "{}.{}".format(joint, axis)
+            if is_thumb and thumb_enable_plug:
+                _ensure_thumb_switch(driven_plug, thumb_enable_plug)
+                continue
+            if is_thumb:
+                _remove_thumb_switch(driven_plug)
             sources = cmds.listConnections(
                 driven_plug, source=True, destination=False, plugs=True
             ) or []
@@ -381,7 +538,7 @@ def resolve_pose_targets(pose, side, finger_roots=None, thumb_mode="auto"):
 
 def build_pose(
     pose, side, driver_ctrl, finger_roots=None, inverted_axes=None,
-    thumb_mode="auto", cleanup_existing=True,
+    thumb_mode="auto", cleanup_existing=True, thumb_enable_plug=None,
 ):
     entries, _missing = _resolve_pose_target_entries(
         pose, side, finger_roots, thumb_mode
@@ -408,7 +565,10 @@ def build_pose(
 
     for joint in merged:
         for axis in ROTATION_AXES:
-            plug = "{}.{}".format(joint, axis)
+            driven_plug = "{}.{}".format(joint, axis)
+            plug = _sdk_driven_plug(
+                driven_plug, merged[joint]["is_thumb"], thumb_enable_plug
+            )
             cmds.setDrivenKeyframe(
                 plug, currentDriver=driver_plug, driverValue=0, value=0
             )
@@ -418,7 +578,10 @@ def build_pose(
         rotations = item["rotations"]
         is_thumb = item["is_thumb"]
         for axis, value in rotations.items():
-            plug = "{}.{}".format(joint, axis)
+            driven_plug = "{}.{}".format(joint, axis)
+            plug = _sdk_driven_plug(
+                driven_plug, is_thumb, thumb_enable_plug
+            )
             if axis in inverted_axes and not is_thumb:
                 value = -value
             cmds.setDrivenKeyframe(

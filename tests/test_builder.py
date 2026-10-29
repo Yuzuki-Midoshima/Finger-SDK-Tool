@@ -363,6 +363,26 @@ class BuildCleanupTests(unittest.TestCase):
 
         self.assertEqual(removed, ["finger_blend.input[3]"])
 
+    def test_rebuild_tolerates_blend_node_auto_deleted_with_curves(self):
+        builder = self.builder
+
+        def connections(plug, **kwargs):
+            if plug == "ctrl.fist":
+                return ["fist_curve"]
+            if plug == "fist_curve.output":
+                return ["deleted_blend.input[0]"]
+            return []
+
+        builder.cmds.listConnections = connections
+        builder.cmds.delete = lambda nodes: None
+        builder.cmds.objExists = lambda node: False
+        builder.cmds.nodeType = lambda node: self.fail(
+            "Deleted blendWeighted nodes must not be queried"
+        )
+        builder.cmds.removeMultiInstance = lambda *args, **kwargs: None
+
+        builder._delete_driver_curves("ctrl.fist")
+
     def test_prepare_rebuild_disconnects_residual_unit_conversion_inputs(self):
         builder = self.builder
         pose = self.make_pose()
@@ -440,6 +460,114 @@ class BuildCleanupTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "No matching L finger joints"):
             builder.build_pose(self.make_pose(), "L", "L_fingers_anim")
+
+    def test_thumb_enable_attribute_is_created_as_on_by_default(self):
+        builder = self.builder
+        created = []
+        builder.cmds.objExists = lambda name: name == "L_fingers_anim"
+        builder.cmds.attributeQuery = lambda *args, **kwargs: False
+        builder.cmds.addAttr = lambda node, **kwargs: created.append((node, kwargs))
+
+        plug = builder.ensure_thumb_enable_attr("L_fingers_anim")
+
+        self.assertEqual(plug, "L_fingers_anim.thumbEnable")
+        self.assertEqual(created[0][0], "L_fingers_anim")
+        self.assertEqual(created[0][1]["enumName"], "OFF:ON")
+        self.assertEqual(created[0][1]["defaultValue"], 1)
+        self.assertEqual(created[0][1]["niceName"], "Thumb Enable")
+
+    def test_thumb_sdk_uses_switch_without_affecting_index_sdk(self):
+        builder = self.builder
+        pose = Pose(
+            name="mixed",
+            driver_attr="fist",
+            driver_value=10.0,
+            joints={
+                "thumb1_jnt": {"rotateZ": 20.0},
+                "index1_jnt": {"rotateZ": 30.0},
+            },
+            source=Path("mixed.json"),
+        )
+        keyed = []
+        builder.cmds.objExists = lambda name: True
+        builder.cmds.ls = lambda **kwargs: []
+        builder.cmds.attributeQuery = lambda *args, **kwargs: True
+        builder.cmds.listConnections = lambda *args, **kwargs: []
+        builder.cmds.setAttr = lambda *args, **kwargs: None
+        builder.cmds.setDrivenKeyframe = (
+            lambda plug, **kwargs: keyed.append((plug, kwargs))
+        )
+        builder._ensure_thumb_switch = (
+            lambda plug, _enable: "switchFor_{}".format(plug)
+        )
+
+        builder.build_pose(
+            pose,
+            "L",
+            "L_fingers_anim",
+            thumb_enable_plug="L_fingers_anim.thumbEnable",
+        )
+
+        self.assertTrue(any(plug.startswith("switchFor_L_thumb1_jnt") for plug, _ in keyed))
+        self.assertTrue(any(plug == "L_index1_jnt.rotateZ" for plug, _ in keyed))
+        self.assertFalse(any(plug.startswith("switchFor_L_index1_jnt") for plug, _ in keyed))
+
+    def test_thumb_switch_preserves_fk_input_and_is_reused(self):
+        builder = self.builder
+        graph = {"L_thumb1_jnt.rotateZ": ["L_thumb1_fk.rotateZ"]}
+        node_types = {"L_thumb1_fk": "transform"}
+        markers = set()
+        created = []
+
+        def connections(plug, **kwargs):
+            return list(graph.get(plug, []))
+
+        def disconnect(source, destination):
+            graph[destination].remove(source)
+
+        def connect(source, destination, **kwargs):
+            graph[destination] = [source]
+
+        def create(node_type, **kwargs):
+            name = "thumbChoice"
+            created.append(name)
+            node_types[name] = node_type
+            return name
+
+        def add_attr(node, **kwargs):
+            if kwargs.get("longName") == builder.THUMB_SWITCH_MARKER:
+                markers.add(node)
+
+        builder.cmds.listConnections = connections
+        builder.cmds.disconnectAttr = disconnect
+        builder.cmds.connectAttr = connect
+        builder.cmds.createNode = create
+        builder.cmds.addAttr = add_attr
+        builder.cmds.nodeType = lambda node: node_types[node]
+        builder.cmds.attributeQuery = (
+            lambda attr, node, **kwargs: node in markers
+        )
+        builder._ensure_thumb_sdk_conversion = (
+            lambda switch: switch + ".sdkInput"
+        )
+
+        first = builder._ensure_thumb_switch(
+            "L_thumb1_jnt.rotateZ", "L_fingers_anim.thumbEnable"
+        )
+        second = builder._ensure_thumb_switch(
+            "L_thumb1_jnt.rotateZ", "L_fingers_anim.thumbEnable"
+        )
+
+        self.assertEqual(first, "thumbChoice.sdkInput")
+        self.assertEqual(second, first)
+        self.assertEqual(created, ["thumbChoice"])
+        self.assertEqual(graph["thumbChoice.input[0]"], ["L_thumb1_fk.rotateZ"])
+        self.assertEqual(
+            graph["thumbChoice.selector"], ["L_fingers_anim.thumbEnable"]
+        )
+        self.assertEqual(
+            graph["L_thumb1_jnt.rotateZ"], ["thumbChoice.output"]
+        )
 
     def test_existing_controller_does_not_require_named_wrist(self):
         builder = self.builder
